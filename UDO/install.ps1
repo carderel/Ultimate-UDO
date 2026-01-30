@@ -4,6 +4,7 @@
 param(
     [switch]$Update,
     [switch]$Fresh,
+    [switch]$Migrate,
     [switch]$Help
 )
 
@@ -20,6 +21,7 @@ if ($Help) {
     Write-Host "Options:"
     Write-Host "  -Update    Update core files only (preserves project data)"
     Write-Host "  -Fresh     Fresh install (removes existing UDO data)"
+    Write-Host "  -Migrate   Migrate legacy root install to UDO/ subfolder"
     Write-Host "  -Help      Show this help message"
     exit 0
 }
@@ -31,265 +33,117 @@ Write-Host "║              AI Project Management System                  ║" 
 Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
-# Function to get installed version
 function Get-InstalledVersion {
-    if (Test-Path "$UDO_DIR\.udo-version") {
-        return (Get-Content "$UDO_DIR\.udo-version" -Raw).Trim()
-    }
-    elseif (Test-Path "$UDO_DIR\PROJECT_META.json") {
-        try {
-            $meta = Get-Content "$UDO_DIR\PROJECT_META.json" | ConvertFrom-Json
-            return $meta.udo_version
-        } catch {
-            return "unknown"
-        }
-    }
+    if (Test-Path "$UDO_DIR\.udo-version") { return (Get-Content "$UDO_DIR\.udo-version" -Raw).Trim() }
+    elseif (Test-Path "$UDO_DIR\PROJECT_META.json") { try { return (Get-Content "$UDO_DIR\PROJECT_META.json" | ConvertFrom-Json).udo_version } catch { return "unknown" } }
+    elseif (Test-Path ".udo-version") { return (Get-Content ".udo-version" -Raw).Trim() }
+    elseif (Test-Path "PROJECT_META.json") { try { return (Get-Content "PROJECT_META.json" | ConvertFrom-Json).udo_version } catch { return "unknown" } }
     return "unknown"
 }
 
-# Function to download file
-function Download-File {
-    param([string]$RemotePath, [string]$LocalPath)
-    try {
-        $url = "$REPO_URL/template/$RemotePath"
-        Invoke-WebRequest -Uri $url -OutFile $LocalPath -UseBasicParsing -ErrorAction Stop
-        return $true
-    } catch {
-        Write-Host "  Warning: Could not download $RemotePath" -ForegroundColor Yellow
-        return $false
-    }
+function Migrate-LegacyInstall {
+    Write-Host "Migrating legacy installation to UDO/ subfolder..." -ForegroundColor Yellow
+    if (-not (Test-Path $UDO_DIR)) { New-Item -ItemType Directory -Path $UDO_DIR -Force | Out-Null }
+    
+    $files = @("ORCHESTRATOR.md","START_HERE.md","COMMANDS.md","OVERSIGHT_DASHBOARD.md","HANDOFF_PROMPT.md","REASONING_CONTRACT.md","DEVILS_ADVOCATE.md","AUDIENCE_ANTICIPATION.md","TOOLS_REGISTRY.md","HARD_STOPS.md","LESSONS_LEARNED.md","NON_GOALS.md","PROJECT_STATE.json","PROJECT_META.json","CAPABILITIES.json",".udo-version")
+    foreach ($f in $files) { if (Test-Path $f) { Move-Item $f "$UDO_DIR\" -Force; Write-Host "  Moved: $f" -ForegroundColor Green } }
+    
+    $dirs = @(".agents",".checkpoints",".inputs",".memory",".outputs",".project-catalog",".rules",".templates",".tools",".takeover")
+    foreach ($d in $dirs) { if (Test-Path $d) { Move-Item $d "$UDO_DIR\" -Force; Write-Host "  Moved: $d/" -ForegroundColor Green } }
+    
+    Write-Host "Migration complete!" -ForegroundColor Green
+    Write-Host ""
 }
 
-# Function to download if missing
-function Download-IfMissing {
-    param([string]$RemotePath, [string]$LocalPath)
-    if (-not (Test-Path $LocalPath)) {
-        Download-File $RemotePath $LocalPath
-    } else {
-        Write-Host "  Kept existing: $LocalPath" -ForegroundColor Blue
-    }
-}
+function Download-File { param([string]$R, [string]$L); try { Invoke-WebRequest -Uri "$REPO_URL/template/$R" -OutFile $L -UseBasicParsing -ErrorAction Stop; return $true } catch { Write-Host "  Warning: Could not download $R" -ForegroundColor Yellow; return $false } }
+function Download-IfMissing { param([string]$R, [string]$L); if (-not (Test-Path $L)) { Download-File $R $L } else { Write-Host "  Kept existing: $L" -ForegroundColor Blue } }
 
 $UpdateMode = ""
+$LegacyInstall = $false
 
-# Check if UDO is already installed
+if ((Test-Path "ORCHESTRATOR.md") -or (Test-Path "START_HERE.md")) { if (-not (Test-Path $UDO_DIR)) { $LegacyInstall = $true } }
+
+if ($LegacyInstall) {
+    $InstalledVersion = Get-InstalledVersion
+    Write-Host "Legacy UDO installation detected (files at root level)." -ForegroundColor Yellow
+    Write-Host "UDO v4.5+ uses a UDO/ subfolder for cleaner organization."
+    Write-Host ""; Write-Host "  Installed version: $InstalledVersion" -ForegroundColor Blue; Write-Host "  Latest version:    $VERSION" -ForegroundColor Blue; Write-Host ""
+    
+    if ($Migrate) { Migrate-LegacyInstall; $UpdateMode = "update" }
+    elseif ($Fresh) { $UpdateMode = "fresh" }
+    else {
+        Write-Host "What would you like to do?"; Write-Host ""; Write-Host "  1) Migrate - Move UDO files into UDO/ subfolder (recommended)"; Write-Host "  2) Fresh install - Keep old files, create new UDO/ folder"; Write-Host "  3) Skip"; Write-Host ""
+        $choice = Read-Host "Choice [1/2/3]"
+        switch ($choice) { "1" { Migrate-LegacyInstall; $UpdateMode = "update" } "2" { $UpdateMode = "fresh" } "3" { Write-Host "Skipped." -ForegroundColor Yellow; exit 0 } default { Write-Host "Invalid. Skipped." -ForegroundColor Yellow; exit 0 } }
+    }
+}
+
 if ((Test-Path "$UDO_DIR\ORCHESTRATOR.md") -or (Test-Path "$UDO_DIR\START_HERE.md")) {
     $InstalledVersion = Get-InstalledVersion
-    
     Write-Host "UDO is already installed in this directory." -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  Installed version: $InstalledVersion" -ForegroundColor Blue
-    Write-Host "  Latest version:    $VERSION" -ForegroundColor Blue
-    Write-Host ""
+    Write-Host ""; Write-Host "  Installed version: $InstalledVersion" -ForegroundColor Blue; Write-Host "  Latest version:    $VERSION" -ForegroundColor Blue; Write-Host ""
+    if ($InstalledVersion -ne $VERSION) { Write-Host "Update available!" -ForegroundColor Green; Write-Host "" }
     
-    # Check if update available
-    if ($InstalledVersion -ne $VERSION) {
-        Write-Host "Update available!" -ForegroundColor Green
-        Write-Host ""
-    }
-    
-    # If flags provided, use them
-    if ($Update) {
-        $UpdateMode = "update"
-    }
-    elseif ($Fresh) {
-        $UpdateMode = "fresh"
-    }
-    else {
-        # Interactive prompt
-        Write-Host "What would you like to do?"
-        Write-Host ""
-        Write-Host "  1) Update - Refresh system files, keep your data"
-        Write-Host "  2) Fresh install - Start over (removes UDO project data)"
-        Write-Host "  3) Skip this time"
-        Write-Host ""
+    if ($Update) { $UpdateMode = "update" } elseif ($Fresh) { $UpdateMode = "fresh" }
+    elseif (-not $UpdateMode) {
+        Write-Host "What would you like to do?"; Write-Host ""; Write-Host "  1) Update - Refresh system files, keep your data"; Write-Host "  2) Fresh install - Start over"; Write-Host "  3) Skip"; Write-Host ""
         $choice = Read-Host "Choice [1/2/3]"
-        
-        switch ($choice) {
-            "1" { $UpdateMode = "update" }
-            "2" { $UpdateMode = "fresh" }
-            "3" { 
-                Write-Host "Skipped." -ForegroundColor Yellow
-                exit 0 
-            }
-            default {
-                Write-Host "Invalid choice. Skipped." -ForegroundColor Yellow
-                exit 0
-            }
-        }
+        switch ($choice) { "1" { $UpdateMode = "update" } "2" { $UpdateMode = "fresh" } "3" { Write-Host "Skipped." -ForegroundColor Yellow; exit 0 } default { Write-Host "Invalid. Skipped." -ForegroundColor Yellow; exit 0 } }
     }
-    
-    # Handle fresh install - remove existing UDO folder
-    if ($UpdateMode -eq "fresh") {
-        Write-Host "Removing existing UDO installation..." -ForegroundColor Red
-        Remove-Item -Recurse -Force $UDO_DIR -ErrorAction SilentlyContinue
-    }
-}
-else {
-    # No existing installation
-    if (-not $UpdateMode) {
-        $UpdateMode = "fresh"
-    }
-}
+    if ($UpdateMode -eq "fresh") { Write-Host "Removing existing UDO installation..." -ForegroundColor Red; Remove-Item -Recurse -Force $UDO_DIR -ErrorAction SilentlyContinue }
+} else { if (-not $UpdateMode) { $UpdateMode = "fresh" } }
 
-Write-Host ""
-Write-Host "Installing UDO v$VERSION to: $(Get-Location)\$UDO_DIR"
-Write-Host "Mode: $UpdateMode" -ForegroundColor Blue
-Write-Host ""
+Write-Host ""; Write-Host "Installing UDO v$VERSION to: $(Get-Location)\$UDO_DIR"; Write-Host "Mode: $UpdateMode" -ForegroundColor Blue; Write-Host ""
 
-# Create UDO directory
-if (-not (Test-Path $UDO_DIR)) {
-    New-Item -ItemType Directory -Path $UDO_DIR -Force | Out-Null
-}
-
-# Change to UDO directory
+if (-not (Test-Path $UDO_DIR)) { New-Item -ItemType Directory -Path $UDO_DIR -Force | Out-Null }
 Push-Location $UDO_DIR
 
-# Create directories
 Write-Host "Creating directory structure..."
-$directories = @(
-    ".agents\_archive",
-    ".checkpoints",
-    ".inputs",
-    ".memory\canonical", ".memory\working", ".memory\disposable",
-    ".outputs\_drafts",
-    ".project-catalog\sessions", ".project-catalog\decisions", ".project-catalog\agents",
-    ".project-catalog\errors", ".project-catalog\handoffs", ".project-catalog\archive",
-    ".rules",
-    ".templates",
-    ".tools\adapters", ".tools\installed", ".tools\templates",
-    ".takeover\agent-templates", ".takeover\audits", ".takeover\evidence"
-)
+@(".agents\_archive",".checkpoints",".inputs",".memory\canonical",".memory\working",".memory\disposable",".outputs\_drafts",".project-catalog\sessions",".project-catalog\decisions",".project-catalog\agents",".project-catalog\errors",".project-catalog\handoffs",".project-catalog\archive",".rules",".templates",".tools\adapters",".tools\installed",".tools\templates",".takeover\agent-templates",".takeover\audits",".takeover\evidence") | ForEach-Object { if (-not (Test-Path $_)) { New-Item -ItemType Directory -Path $_ -Force | Out-Null } }
 
-foreach ($dir in $directories) {
-    if (-not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    }
-}
-
-# Core files (always update)
 Write-Host "Downloading core files..."
-$coreFiles = @(
-    "START_HERE.md", "ORCHESTRATOR.md", "COMMANDS.md", "OVERSIGHT_DASHBOARD.md", 
-    "HANDOFF_PROMPT.md", "REASONING_CONTRACT.md", "DEVILS_ADVOCATE.md", 
-    "AUDIENCE_ANTICIPATION.md", "TOOLS_REGISTRY.md"
-)
-foreach ($file in $coreFiles) {
-    Download-File $file $file | Out-Null
-}
+@("START_HERE.md","ORCHESTRATOR.md","COMMANDS.md","OVERSIGHT_DASHBOARD.md","HANDOFF_PROMPT.md","REASONING_CONTRACT.md","DEVILS_ADVOCATE.md","AUDIENCE_ANTICIPATION.md","TOOLS_REGISTRY.md") | ForEach-Object { Download-File $_ $_ | Out-Null }
 
-# Config files
-$configFiles = @(
-    "HARD_STOPS.md", "LESSONS_LEARNED.md", "NON_GOALS.md", 
-    "PROJECT_STATE.json", "PROJECT_META.json", "CAPABILITIES.json"
-)
+$configFiles = @("HARD_STOPS.md","LESSONS_LEARNED.md","NON_GOALS.md","PROJECT_STATE.json","PROJECT_META.json","CAPABILITIES.json")
+if ($UpdateMode -eq "fresh") { Write-Host "Downloading configuration files..."; $configFiles | ForEach-Object { Download-File $_ $_ | Out-Null } }
+else { Write-Host "Preserving existing configuration files..."; $configFiles | ForEach-Object { Download-IfMissing $_ $_ } }
 
-if ($UpdateMode -eq "fresh") {
-    Write-Host "Downloading configuration files..."
-    foreach ($file in $configFiles) {
-        Download-File $file $file | Out-Null
-    }
-} else {
-    Write-Host "Preserving existing configuration files..."
-    foreach ($file in $configFiles) {
-        Download-IfMissing $file $file
-    }
-}
-
-# Templates (always update)
 Write-Host "Downloading templates..."
-Download-File ".templates/agent.md" ".templates\agent.md" | Out-Null
-Download-File ".templates/reasoning-handoff.md" ".templates\reasoning-handoff.md" | Out-Null
-Download-File ".templates/session.md" ".templates\session.md" | Out-Null
-Download-File ".templates/handoff.md" ".templates\handoff.md" | Out-Null
-Download-File ".templates/error.md" ".templates\error.md" | Out-Null
-Download-File ".templates/canonical-fact.md" ".templates\canonical-fact.md" | Out-Null
-Download-File ".templates/archive-summary.md" ".templates\archive-summary.md" | Out-Null
+@("agent.md","reasoning-handoff.md","session.md","handoff.md","error.md","canonical-fact.md","archive-summary.md") | ForEach-Object { Download-File ".templates/$_" ".templates\$_" | Out-Null }
 
-# Tool system files (always update)
 Write-Host "Downloading tool system files..."
-Download-File ".tools/adapters/search.md" ".tools\adapters\search.md" | Out-Null
-Download-File ".tools/adapters/storage.md" ".tools\adapters\storage.md" | Out-Null
-Download-File ".tools/adapters/data.md" ".tools\adapters\data.md" | Out-Null
-Download-File ".tools/adapters/communication.md" ".tools\adapters\communication.md" | Out-Null
-Download-File ".tools/adapters/execution.md" ".tools\adapters\execution.md" | Out-Null
+@("search.md","storage.md","data.md","communication.md","execution.md") | ForEach-Object { Download-File ".tools/adapters/$_" ".tools\adapters\$_" | Out-Null }
 Download-File ".tools/templates/tool-config.md" ".tools\templates\tool-config.md" | Out-Null
 
-# Takeover module (always update)
 Write-Host "Downloading takeover module..."
 Download-File ".takeover/TAKEOVER_ORCHESTRATOR.md" ".takeover\TAKEOVER_ORCHESTRATOR.md" | Out-Null
 Download-File ".takeover/discovery.json" ".takeover\discovery.json" | Out-Null
 Download-File ".takeover/scope-config.json" ".takeover\scope-config.json" | Out-Null
-Download-File ".takeover/agent-templates/structure-auditor.md" ".takeover\agent-templates\structure-auditor.md" | Out-Null
-Download-File ".takeover/agent-templates/documentation-auditor.md" ".takeover\agent-templates\documentation-auditor.md" | Out-Null
-Download-File ".takeover/agent-templates/code-quality-auditor.md" ".takeover\agent-templates\code-quality-auditor.md" | Out-Null
-Download-File ".takeover/agent-templates/security-auditor.md" ".takeover\agent-templates\security-auditor.md" | Out-Null
-Download-File ".takeover/agent-templates/test-auditor.md" ".takeover\agent-templates\test-auditor.md" | Out-Null
+@("structure-auditor.md","documentation-auditor.md","code-quality-auditor.md","security-auditor.md","test-auditor.md") | ForEach-Object { Download-File ".takeover/agent-templates/$_" ".takeover\agent-templates\$_" | Out-Null }
 
-# Default rules (always update)
 Write-Host "Downloading default rules..."
-Download-File ".rules/code-standards.md" ".rules\code-standards.md" | Out-Null
-Download-File ".rules/content-guidelines.md" ".rules\content-guidelines.md" | Out-Null
-Download-File ".rules/data-validation.md" ".rules\data-validation.md" | Out-Null
+@("code-standards.md","content-guidelines.md","data-validation.md") | ForEach-Object { Download-File ".rules/$_" ".rules\$_" | Out-Null }
 
-# README files (always update)
 Write-Host "Downloading documentation..."
 Download-File ".memory/README.md" ".memory\README.md" | Out-Null
 Download-File ".project-catalog/README.md" ".project-catalog\README.md" | Out-Null
 Download-File ".project-catalog/sessions/README.md" ".project-catalog\sessions\README.md" | Out-Null
 
-# Manifest
-if ($UpdateMode -eq "fresh") {
-    Download-File ".inputs/manifest.json" ".inputs\manifest.json" | Out-Null
-} else {
-    Download-IfMissing ".inputs/manifest.json" ".inputs\manifest.json"
-}
+if ($UpdateMode -eq "fresh") { Download-File ".inputs/manifest.json" ".inputs\manifest.json" | Out-Null } else { Download-IfMissing ".inputs/manifest.json" ".inputs\manifest.json" }
 
-# Create .gitkeep files
 Write-Host "Ensuring directory placeholders..."
-$gitkeepDirs = @(
-    ".agents\_archive", ".checkpoints", ".memory\canonical", ".memory\working", 
-    ".memory\disposable", ".outputs\_drafts", ".project-catalog\sessions", 
-    ".project-catalog\decisions", ".project-catalog\agents", ".project-catalog\errors",
-    ".project-catalog\handoffs", ".project-catalog\archive", ".tools\installed",
-    ".takeover\audits", ".takeover\evidence"
-)
+@(".agents\_archive",".checkpoints",".memory\canonical",".memory\working",".memory\disposable",".outputs\_drafts",".project-catalog\sessions",".project-catalog\decisions",".project-catalog\agents",".project-catalog\errors",".project-catalog\handoffs",".project-catalog\archive",".tools\installed",".takeover\audits",".takeover\evidence") | ForEach-Object { $gk = "$_\.gitkeep"; if (-not (Test-Path $gk)) { "# Preserves directory" | Out-File -FilePath $gk -Encoding UTF8 } }
 
-foreach ($dir in $gitkeepDirs) {
-    $gitkeep = "$dir\.gitkeep"
-    if (-not (Test-Path $gitkeep)) {
-        "# This file preserves the directory in git" | Out-File -FilePath $gitkeep -Encoding UTF8
-    }
-}
-
-# Save version file
 $VERSION | Out-File -FilePath ".udo-version" -Encoding UTF8 -NoNewline
+if (Test-Path "PROJECT_META.json") { try { $m = Get-Content "PROJECT_META.json" -Raw | ConvertFrom-Json; $m.udo_version = $VERSION; $m | ConvertTo-Json -Depth 10 | Set-Content "PROJECT_META.json" -Encoding UTF8 } catch { } }
 
-# Update version in PROJECT_META.json
-if (Test-Path "PROJECT_META.json") {
-    try {
-        $meta = Get-Content "PROJECT_META.json" -Raw | ConvertFrom-Json
-        $meta.udo_version = $VERSION
-        $meta | ConvertTo-Json -Depth 10 | Set-Content "PROJECT_META.json" -Encoding UTF8
-    } catch { }
-}
-
-# Return to original directory
 Pop-Location
 
 Write-Host ""
-if ($UpdateMode -eq "fresh") {
-    Write-Host "✓ UDO v$VERSION installed successfully!" -ForegroundColor Green
-} else {
-    Write-Host "✓ UDO updated to v$VERSION!" -ForegroundColor Green
-    Write-Host "  Your project data and configuration were preserved." -ForegroundColor Blue
-}
+if ($UpdateMode -eq "fresh") { Write-Host "✓ UDO v$VERSION installed successfully!" -ForegroundColor Green }
+else { Write-Host "✓ UDO updated to v$VERSION!" -ForegroundColor Green; Write-Host "  Your project data and configuration were preserved." -ForegroundColor Blue }
 
-Write-Host ""
-Write-Host "Next steps:"
-Write-Host "1. Configure your AI with this system prompt addition:"
-Write-Host ""
+Write-Host ""; Write-Host "Next steps:"; Write-Host "1. Configure your AI with this system prompt addition:"; Write-Host ""
 Write-Host "   Before responding to any request, read the project's" -ForegroundColor Yellow
 Write-Host "   UDO/START_HERE.md and follow its instructions." -ForegroundColor Yellow
-Write-Host ""
-Write-Host '2. Tell your AI: "Read UDO/START_HERE.md and begin"'
+Write-Host ""; Write-Host '2. Tell your AI: "Read UDO/START_HERE.md and begin"'
