@@ -1,0 +1,18 @@
+{
+  "environment": "",
+  "llm": "",
+  "tools_available": {
+    "file_read": true,
+    "file_write": true,
+    "web_search": false,
+    "code_execution": false,
+    "image_generation": false,
+    "browser_control": false
+  },
+  "constraints": {
+    "max_file_size": null,
+    "allowed_languages": [],
+    "restricted_paths": []
+  },
+  "notes": "Update this file to reflect your AI environment's capabilities."
+}
