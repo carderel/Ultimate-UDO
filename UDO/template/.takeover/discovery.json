@@ -1,0 +1,39 @@
+{
+  "status": "pending",
+  "timestamp": null,
+  "project_name": "",
+  "project_type": [],
+  "tech_stack": {
+    "languages": [],
+    "frameworks": [],
+    "databases": []
+  },
+  "structure": {
+    "total_files": 0,
+    "total_folders": 0,
+    "organization_pattern": ""
+  },
+  "documentation": {
+    "has_readme": false,
+    "readme_quality": "none",
+    "has_docs_folder": false
+  },
+  "existing_tracking": {
+    "has_issues": false,
+    "has_changelog": false,
+    "has_todos": false
+  },
+  "environment": {
+    "is_runnable": "unknown",
+    "runnable_blockers": []
+  },
+  "sensitive_data": {
+    "secrets_detected": false,
+    "locations_flagged": []
+  },
+  "scope_estimate": {
+    "complexity": "unknown",
+    "recommended_audit_depth": "standard"
+  },
+  "uncertainties": []
+}
