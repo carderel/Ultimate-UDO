@@ -1,18 +1,67 @@
 {
-  "environment": "",
-  "llm": "",
+  "_instructions": "On first run, the AI should auto-detect its environment and update this file. If auto-detection fails, ask the user to confirm capabilities.",
+  
+  "environment": "auto-detect",
+  "llm": "auto-detect",
+  
   "tools_available": {
-    "file_read": true,
-    "file_write": true,
-    "web_search": false,
-    "code_execution": false,
-    "image_generation": false,
-    "browser_control": false
+    "file_read": "auto-detect",
+    "file_write": "auto-detect",
+    "file_edit": "auto-detect",
+    "bash_commands": "auto-detect",
+    "code_execution": "auto-detect",
+    "web_search": "auto-detect",
+    "web_fetch": "auto-detect",
+    "image_generation": "auto-detect",
+    "image_analysis": "auto-detect",
+    "browser_control": "auto-detect",
+    "mcp_tools": "auto-detect"
   },
+  
+  "auto_detection": {
+    "on_first_run": true,
+    "method": "The AI should attempt to identify its capabilities by checking what tools/functions are available in its context. Update this file with actual boolean values after detection.",
+    "common_environments": {
+      "claude_cli": {
+        "file_read": true,
+        "file_write": true,
+        "file_edit": true,
+        "bash_commands": true,
+        "code_execution": true,
+        "web_search": false,
+        "mcp_tools": "depends on config"
+      },
+      "claude_web": {
+        "file_read": true,
+        "file_write": true,
+        "file_edit": true,
+        "bash_commands": true,
+        "code_execution": true,
+        "web_search": true,
+        "image_analysis": true
+      },
+      "chatgpt_web": {
+        "file_read": true,
+        "file_write": false,
+        "code_execution": true,
+        "web_search": true,
+        "image_generation": true
+      },
+      "api_only": {
+        "file_read": false,
+        "file_write": false,
+        "code_execution": false,
+        "web_search": false
+      }
+    }
+  },
+  
   "constraints": {
     "max_file_size": null,
+    "context_window": "auto-detect",
     "allowed_languages": [],
     "restricted_paths": []
   },
-  "notes": "Update this file to reflect your AI environment's capabilities."
+  
+  "notes": "This file will be updated automatically on first run. If capabilities change, run 'Detect capabilities' command."
 }

@@ -212,3 +212,23 @@ Tools are categorized by what they do:
 | execution | Run code (Python, Node, bash) |
 
 **Full documentation:** See `TOOLS_REGISTRY.md` and `.tools/adapters/`
+
+---
+
+## Capability Detection
+
+| Command | What It Does |
+|---------|--------------|
+| `Detect capabilities` | Re-run environment capability detection |
+| `/dc` | Shortcut for above |
+
+### When to Use
+- First session with a new project
+- After changing AI environments (e.g., CLI to web)
+- If capabilities seem incorrect
+
+### What It Does
+1. Identifies the AI environment (Claude CLI, Claude Web, ChatGPT, etc.)
+2. Tests available capabilities (file read/write, bash, web search, etc.)
+3. Updates CAPABILITIES.json with actual values
+4. Reports detected capabilities to user
