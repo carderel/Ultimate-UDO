@@ -1,0 +1,30 @@
+{
+  "goal": "",
+  "phase": "initialized",
+  "todos": [],
+  "in_progress": [],
+  "completed": [],
+  "blockers": [],
+  "agent_registry": [],
+  "checkpoints": [],
+  "circuit_breaker": {
+    "triggered": false,
+    "reason": null,
+    "timestamp": null
+  },
+  "context_health": {
+    "estimated_usage": "low",
+    "last_archive": null
+  },
+  "auto_checkpoint": {
+    "enabled": true,
+    "todos_since_checkpoint": 0,
+    "last_auto_checkpoint": null
+  },
+  "current_session": {
+    "started": null,
+    "llm": null,
+    "actions": []
+  },
+  "notes": "Project initialized. Define goal to begin."
+}
